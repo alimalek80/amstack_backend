@@ -5,9 +5,16 @@ class SiteSettings(models.Model):
     """Single-record model holding the editable texts and links of the site."""
 
     hero_headline = models.CharField(
-        max_length=200, default="Django backends for European digital agencies"
+        max_length=200, default="Websites, online stores, bots and SaaS, built end to end"
     )
-    hero_subheadline = models.CharField(max_length=300, blank=True)
+    hero_subheadline = models.CharField(
+        max_length=300,
+        blank=True,
+        default=(
+            "Company sites, shops, custom features, website chatbots, "
+            "Telegram bots and SaaS platforms, from simple to advanced."
+        ),
+    )
     about_text = models.TextField(blank=True)
     email = models.EmailField(blank=True)
     linkedin_url = models.URLField(blank=True)
