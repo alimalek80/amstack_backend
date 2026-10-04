@@ -1,0 +1,166 @@
+[
+  {
+    "model": "portfolio.technology",
+    "pk": 1,
+    "fields": {
+      "name": "Django",
+      "slug": "django"
+    }
+  },
+  {
+    "model": "portfolio.technology",
+    "pk": 2,
+    "fields": {
+      "name": "Django REST Framework",
+      "slug": "django-rest-framework"
+    }
+  },
+  {
+    "model": "portfolio.technology",
+    "pk": 3,
+    "fields": {
+      "name": "Next.js",
+      "slug": "nextjs"
+    }
+  },
+  {
+    "model": "portfolio.technology",
+    "pk": 4,
+    "fields": {
+      "name": "PostgreSQL",
+      "slug": "postgresql"
+    }
+  },
+  {
+    "model": "portfolio.technology",
+    "pk": 5,
+    "fields": {
+      "name": "Shopify",
+      "slug": "shopify"
+    }
+  },
+  {
+    "model": "portfolio.technology",
+    "pk": 6,
+    "fields": {
+      "name": "Liquid",
+      "slug": "liquid"
+    }
+  },
+  {
+    "model": "portfolio.technology",
+    "pk": 7,
+    "fields": {
+      "name": "Claude API",
+      "slug": "claude-api"
+    }
+  },
+  {
+    "model": "portfolio.technology",
+    "pk": 8,
+    "fields": {
+      "name": "n8n",
+      "slug": "n8n"
+    }
+  },
+  {
+    "model": "portfolio.technology",
+    "pk": 9,
+    "fields": {
+      "name": "Telegram Bot API",
+      "slug": "telegram-bot-api"
+    }
+  },
+  {
+    "model": "portfolio.technology",
+    "pk": 10,
+    "fields": {
+      "name": "Docker",
+      "slug": "docker"
+    }
+  },
+  {
+    "model": "portfolio.service",
+    "pk": 1,
+    "fields": {
+      "title": "Company websites",
+      "slug": "company-websites",
+      "summary": "Fast, clear websites that present your business and make it easy for visitors to contact you.",
+      "description": "I design and build company websites that load quickly, work well on phones and are easy to keep up to date. You get clear pages for your services, your team and your work, a contact form that reaches you, and the technical SEO basics in place so search engines can understand the site.\n\nYou can manage the content yourself through a simple admin panel, so you do not need a developer for every text change.",
+      "order": 10,
+      "is_published": true
+    }
+  },
+  {
+    "model": "portfolio.service",
+    "pk": 2,
+    "fields": {
+      "title": "Online stores",
+      "slug": "online-stores",
+      "summary": "Online shops on Shopify or a custom Django stack, from product pages to checkout.",
+      "description": "I build online stores on Shopify, with custom themes and Liquid where the standard themes fall short, or on a custom Django backend when you need full control over products, orders and integrations.\n\nThis covers product and collection pages, responsive layouts, checkout customisation and connections to the tools you already use.",
+      "order": 20,
+      "is_published": true
+    }
+  },
+  {
+    "model": "portfolio.service",
+    "pk": 3,
+    "fields": {
+      "title": "Custom features and integrations",
+      "slug": "custom-features",
+      "summary": "A new section, feature or automation for a site or system you already have.",
+      "description": "Not every project starts from zero. If you already have a website or a shop and need something added, such as a booking form, a new section, an integration with another service or an automated workflow, I can build it so it fits into what is already there.\n\nI also connect tools and automate repetitive work with n8n, so data moves between your systems without manual copying.",
+      "order": 30,
+      "is_published": true
+    }
+  },
+  {
+    "model": "portfolio.service",
+    "pk": 4,
+    "fields": {
+      "title": "Website chatbots",
+      "slug": "website-chatbots",
+      "summary": "AI chatbots that answer your visitors' questions, based on your own content.",
+      "description": "A chatbot on your website can answer common questions, guide visitors to the right page and collect enquiries at any hour. I build chatbots with the Claude API that work from your own content, such as your services, FAQs and product information, so the answers stay relevant to your business.\n\nThe bot can be added to an existing site and connected to your contact or order process.",
+      "order": 40,
+      "is_published": true
+    }
+  },
+  {
+    "model": "portfolio.service",
+    "pk": 5,
+    "fields": {
+      "title": "Telegram bots",
+      "slug": "telegram-bots",
+      "summary": "Bots that answer questions, take orders and automate work inside Telegram.",
+      "description": "Telegram bots are a simple way to reach customers and to automate internal work. I build bots that answer questions, take orders or bookings, send notifications, run menus and forms, and connect to your website or database.\n\nA bot can be simple and rule-based, or use AI to understand free-text messages, depending on what the job needs.",
+      "order": 50,
+      "is_published": true
+    }
+  },
+  {
+    "model": "portfolio.service",
+    "pk": 6,
+    "fields": {
+      "title": "SaaS products",
+      "slug": "saas-products",
+      "summary": "From first idea to a working subscription product: backend, frontend and deployment.",
+      "description": "I build SaaS products end to end: a Django and PostgreSQL backend with a clean API, a Next.js frontend, user accounts and deployment to a server. I work with you to decide what the first version needs, so you can launch and learn from real users before building more.\n\nI am building my own SaaS platform, FAMMO.ai, so I know the product side as well as the technical side.",
+      "order": 60,
+      "is_published": true
+    }
+  },
+  {
+    "model": "portfolio.service",
+    "pk": 7,
+    "fields": {
+      "title": "Backend and API development",
+      "slug": "backend-api-development",
+      "summary": "Django and Django REST Framework backends and APIs for web and mobile apps.",
+      "description": "I build backends and APIs with Django and Django REST Framework: data models, authentication, admin panels and clean endpoints that your frontend or mobile team can use. I can work alongside your existing frontend developers or agency.\n\nThis includes moving older projects to a cleaner API-based structure and adding tests to existing Django code.",
+      "order": 70,
+      "is_published": true
+    }
+  }
+]

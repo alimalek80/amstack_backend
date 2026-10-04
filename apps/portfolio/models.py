@@ -17,7 +17,16 @@ class Service(models.Model):
     title = models.CharField(max_length=120)
     slug = models.SlugField(max_length=140, unique=True)
     summary = models.CharField(max_length=300)
-    description = models.TextField(blank=True)
+    icon = models.ImageField(
+        upload_to="services/icons/",
+        blank=True,
+        help_text="Small symbol shown at the top left of the service card (square works best).",
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Write [image 1], [image 2]... on their own line to place the images "
+        "added below at that spot. Images not mentioned appear after the text.",
+    )
     order = models.PositiveIntegerField(default=0)
     is_published = models.BooleanField(default=False)
 
@@ -26,6 +35,22 @@ class Service(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class ServiceImage(models.Model):
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="images")
+    image = models.ImageField(upload_to="services/images/")
+    alt = models.CharField(max_length=200, blank=True, help_text="Short description for accessibility.")
+    caption = models.CharField(max_length=200, blank=True)
+    order = models.PositiveIntegerField(
+        default=0, help_text="Image 1 is the lowest number, image 2 the next, and so on."
+    )
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.service.title} image {self.pk}"
 
 
 class Project(models.Model):

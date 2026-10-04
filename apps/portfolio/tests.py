@@ -1,3 +1,4 @@
+from django.core.management import call_command
 from django.test import TestCase
 
 from .models import Project, Service, Technology
@@ -53,3 +54,12 @@ class ProjectApiTests(TestCase):
 
     def test_detail_of_unpublished_is_404(self):
         self.assertEqual(self.client.get("/api/projects/c/").status_code, 404)
+
+
+class InitialContentTests(TestCase):
+    def test_fixture_loads_and_services_are_public(self):
+        call_command("loaddata", "initial_content", verbosity=0)
+        response = self.client.get("/api/services/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()), 7)
+        self.assertEqual(Technology.objects.count(), 10)

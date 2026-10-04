@@ -16,7 +16,7 @@ class ServiceListView(generics.ListAPIView):
 
 class ServiceDetailView(generics.RetrieveAPIView):
     serializer_class = ServiceDetailSerializer
-    queryset = Service.objects.filter(is_published=True)
+    queryset = Service.objects.filter(is_published=True).prefetch_related("images")
     lookup_field = "slug"
 
 

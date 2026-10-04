@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Project, Service, Technology
+from .models import Project, Service, ServiceImage, Technology
 
 
 class TechnologySerializer(serializers.ModelSerializer):
@@ -9,16 +9,24 @@ class TechnologySerializer(serializers.ModelSerializer):
         fields = ["name", "slug"]
 
 
+class ServiceImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceImage
+        fields = ["image", "alt", "caption"]
+
+
 class ServiceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Service
-        fields = ["slug", "title", "summary"]
+        fields = ["slug", "title", "summary", "icon"]
 
 
 class ServiceDetailSerializer(serializers.ModelSerializer):
+    images = ServiceImageSerializer(many=True, read_only=True)
+
     class Meta:
         model = Service
-        fields = ["slug", "title", "summary", "description"]
+        fields = ["slug", "title", "summary", "icon", "description", "images"]
 
 
 class ProjectListSerializer(serializers.ModelSerializer):

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Project, Service, Technology
+from .models import Project, Service, ServiceImage, Technology
 
 
 @admin.register(Technology)
@@ -10,8 +10,14 @@ class TechnologyAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("name",)}
 
 
+class ServiceImageInline(admin.TabularInline):
+    model = ServiceImage
+    extra = 1
+
+
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
+    inlines = [ServiceImageInline]
     list_display = ("title", "order", "is_published")
     list_editable = ("order", "is_published")
     prepopulated_fields = {"slug": ("title",)}
