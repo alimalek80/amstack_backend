@@ -11,5 +11,6 @@ class CoreApiTests(TestCase):
         response = self.client.get("/api/settings/")
         self.assertEqual(response.status_code, 200)
         self.assertIn("hero_headline", response.json())
+        self.assertIn("about_photo", response.json())
         self.client.get("/api/settings/")
         self.assertEqual(SiteSettings.objects.count(), 1)

@@ -16,6 +16,7 @@ class SiteSettings(models.Model):
         ),
     )
     about_text = models.TextField(blank=True)
+    about_photo = models.ImageField(upload_to="about/", blank=True)
     email = models.EmailField(blank=True)
     linkedin_url = models.URLField(blank=True)
     github_url = models.URLField(blank=True)
