@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.portfolio",
     "apps.contact",
+    "apps.blog",
 ]
 
 MIDDLEWARE = [
@@ -93,8 +94,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    # Public endpoints need no login. The dashboard API opts in to session auth per view.
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
     "DEFAULT_THROTTLE_RATES": {
         "contact": "5/hour",
+        "dashboard_login": "20/hour",
     },
 }
 
