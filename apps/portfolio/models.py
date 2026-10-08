@@ -64,6 +64,7 @@ class Project(models.Model):
     tech_stack = models.ManyToManyField(Technology, blank=True, related_name="projects")
     cover_image = models.ImageField(upload_to="projects/", blank=True)
     live_url = models.URLField(blank=True)
+    repo_url = models.URLField(blank=True, help_text="GitHub repository link (optional).")
     order = models.PositiveIntegerField(default=0)
     is_featured = models.BooleanField(default=False)
     is_published = models.BooleanField(default=False)
@@ -73,3 +74,19 @@ class Project(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class ProjectImage(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="images")
+    image = models.ImageField(upload_to="projects/gallery/")
+    alt = models.CharField(max_length=200, blank=True, help_text="Short description for accessibility.")
+    caption = models.CharField(max_length=200, blank=True)
+    order = models.PositiveIntegerField(
+        default=0, help_text="Lowest number is shown first in the project gallery."
+    )
+
+    class Meta:
+        ordering = ["order", "id"]
+
+    def __str__(self):
+        return f"{self.project.title} image {self.pk}"

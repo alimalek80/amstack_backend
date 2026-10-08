@@ -32,5 +32,5 @@ class ProjectListView(generics.ListAPIView):
 
 class ProjectDetailView(generics.RetrieveAPIView):
     serializer_class = ProjectDetailSerializer
-    queryset = Project.objects.filter(is_published=True).prefetch_related("tech_stack")
+    queryset = Project.objects.filter(is_published=True).prefetch_related("tech_stack", "images")
     lookup_field = "slug"
