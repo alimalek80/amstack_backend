@@ -143,6 +143,18 @@ class DashboardPostTests(TestCase):
             {"type": "text", "text": "x", "marks": [{"type": "link", "attrs": {"href": "javascript:alert(1)"}}]}]})
         self.assertEqual(self.create(body=bad_link).status_code, 400)
 
+    def test_tables_are_kept(self):
+        cell = lambda kind, text: {  # noqa: E731
+            "type": kind, "attrs": {"colspan": 1, "rowspan": 1, "colwidth": None},
+            "content": [{"type": "paragraph", "content": [{"type": "text", "text": text}]}]}
+        table = doc({"type": "table", "content": [
+            {"type": "tableRow", "content": [cell("tableHeader", "Part"), cell("tableHeader", "Job")]},
+            {"type": "tableRow", "content": [cell("tableCell", "Model"), cell("tableCell", "Data")]},
+        ]})
+        body = self.create(body=table).json()["body"]["content"][0]
+        self.assertEqual(body["content"][0]["content"][0]["attrs"], {"colspan": 1, "rowspan": 1})
+        self.assertEqual(body["content"][1]["content"][1]["type"], "tableCell")
+
     def test_reading_time_counts_all_text(self):
         words = " ".join(["word"] * 600)
         body = doc({"type": "paragraph", "content": [{"type": "text", "text": words}]})

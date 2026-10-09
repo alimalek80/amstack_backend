@@ -21,11 +21,16 @@ SAFE_HREF_RE = re.compile(r"^(https?://|mailto:|/(?!/)|#)", re.IGNORECASE)
 NODES = {
     "doc", "paragraph", "text", "heading", "bulletList", "orderedList", "listItem",
     "blockquote", "codeBlock", "horizontalRule", "hardBreak", "image",
+    "table", "tableRow", "tableHeader", "tableCell",
 }
 MARKS = {"bold", "italic", "underline", "strike", "code", "highlight", "link"}
 MAX_DEPTH = 40
 MAX_NODES = 20_000
 MAX_TEXT = 300_000
+
+
+def _span(value):
+    return value if isinstance(value, int) and 0 < value <= 50 else 1
 
 
 def empty_doc():
@@ -66,6 +71,8 @@ class _Cleaner:
             language = raw.get("language") or ""
             language = language.strip().lower() if isinstance(language, str) else ""
             return {"language": language if LANGUAGE_RE.match(language) else ""}
+        if kind in ("tableCell", "tableHeader"):
+            return {"colspan": _span(raw.get("colspan")), "rowspan": _span(raw.get("rowspan"))}
         if kind == "image":
             src = raw.get("src")
             if not isinstance(src, str) or not SAFE_SRC_RE.match(src):
