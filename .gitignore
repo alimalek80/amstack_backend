@@ -17,3 +17,4 @@ media/
 .idea/
 .DS_Store
 Thumbs.db
+.gstack/

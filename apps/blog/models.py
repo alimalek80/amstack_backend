@@ -2,6 +2,8 @@ from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
 
+from .content import empty_doc, plain_text
+
 
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -37,8 +39,8 @@ class Post(models.Model):
     cover = models.ForeignKey(
         BlogImage, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
-    # Ordered list of content blocks (text, heading, code, image, note); see serializers.py.
-    body = models.JSONField(default=list, blank=True)
+    # Rich text document from the dashboard editor (Tiptap JSON); see content.py.
+    body = models.JSONField(default=empty_doc, blank=True)
     repo_url = models.URLField(blank=True, help_text="GitHub repository link (optional).")
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
@@ -67,10 +69,4 @@ class Post(models.Model):
 
     @property
     def reading_minutes(self):
-        words = sum(
-            len(str(block.get(key, "")).split())
-            for block in self.body
-            if isinstance(block, dict)
-            for key in ("text", "code")
-        )
-        return max(1, round(words / 200))
+        return max(1, round(len(plain_text(self.body).split()) / 200))

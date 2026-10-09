@@ -12,13 +12,21 @@ from .models import Category, Post
 User = get_user_model()
 
 
+def doc(*nodes):
+    return {"type": "doc", "content": list(nodes)}
+
+
+def code_block(code, language="python"):
+    return {"type": "codeBlock", "attrs": {"language": language}, "content": [{"type": "text", "text": code}]}
+
+
 class PublicBlogApiTests(TestCase):
     def setUp(self):
         self.django = Category.objects.create(name="Django", slug="django")
         Category.objects.create(name="Empty", slug="empty")
         Post.objects.create(
             title="Live", slug="live", category=self.django, is_published=True,
-            body=[{"type": "code", "code": "print(1)", "language": "python", "filename": ""}],
+            body=doc(code_block("print(1)")),
         )
         Post.objects.create(title="Draft", slug="draft", category=self.django)
 
@@ -32,7 +40,7 @@ class PublicBlogApiTests(TestCase):
 
     def test_detail_has_body_and_draft_is_404(self):
         data = self.client.get("/api/blog/posts/live/").json()
-        self.assertEqual(data["body"][0]["language"], "python")
+        self.assertEqual(data["body"]["content"][0]["attrs"]["language"], "python")
         self.assertIsNotNone(data["published_at"])
         self.assertEqual(self.client.get("/api/blog/posts/draft/").status_code, 404)
 
@@ -96,7 +104,7 @@ class DashboardPostTests(TestCase):
         self.client.force_login(admin)
 
     def create(self, **data):
-        payload = {"title": "Hello Django", "body": [], **data}
+        payload = {"title": "Hello Django", "body": doc(), **data}
         return self.client.post("/api/dashboard/posts/", payload, content_type="application/json")
 
     def test_detail_has_category_name_even_without_category(self):
@@ -112,19 +120,33 @@ class DashboardPostTests(TestCase):
         self.assertEqual(self.create().json()["slug"], "hello-django")
         self.assertEqual(self.create().json()["slug"], "hello-django-2")
 
-    def test_body_blocks_are_cleaned(self):
-        body = [
-            {"type": "code", "code": "x = 1", "language": "Python", "extra": "dropped"},
-            {"type": "heading", "text": "Setup", "level": "9"},
-        ]
-        data = self.create(body=body).json()
-        self.assertEqual(data["body"][0], {"type": "code", "code": "x = 1", "language": "python", "filename": ""})
-        self.assertEqual(data["body"][1]["level"], 2)
+    def test_body_is_cleaned(self):
+        body = doc(
+            {"type": "codeBlock", "attrs": {"language": "Python", "class": "x"},
+             "content": [{"type": "text", "text": "x = 1"}]},
+            {"type": "heading", "attrs": {"level": 9}, "content": [{"type": "text", "text": "Setup"}]},
+            {"type": "paragraph", "content": [{"type": "text", "text": "Docs", "marks": [
+                {"type": "link", "attrs": {"href": "https://docs.djangoproject.com", "target": "_blank"}},
+                {"type": "highlight"}]}]},
+        )
+        data = self.create(body=body).json()["body"]["content"]
+        self.assertEqual(data[0], code_block("x = 1"))
+        self.assertEqual(data[1]["attrs"], {"level": 2})
+        self.assertEqual(data[2]["content"][0]["marks"][0], {"type": "link", "attrs": {"href": "https://docs.djangoproject.com"}})
 
-    def test_rejects_unknown_block_and_unsafe_image(self):
-        self.assertEqual(self.create(body=[{"type": "script"}]).status_code, 400)
-        bad_image = [{"type": "image", "src": "javascript:alert(1)"}]
+    def test_rejects_unknown_nodes_and_unsafe_urls(self):
+        self.assertEqual(self.create(body=[{"type": "text"}]).status_code, 400)
+        self.assertEqual(self.create(body=doc({"type": "script"})).status_code, 400)
+        bad_image = doc({"type": "image", "attrs": {"src": "javascript:alert(1)"}})
         self.assertEqual(self.create(body=bad_image).status_code, 400)
+        bad_link = doc({"type": "paragraph", "content": [
+            {"type": "text", "text": "x", "marks": [{"type": "link", "attrs": {"href": "javascript:alert(1)"}}]}]})
+        self.assertEqual(self.create(body=bad_link).status_code, 400)
+
+    def test_reading_time_counts_all_text(self):
+        words = " ".join(["word"] * 600)
+        body = doc({"type": "paragraph", "content": [{"type": "text", "text": words}]})
+        self.assertEqual(self.create(body=body).json()["reading_minutes"], 3)
 
     def test_publish_sets_date_and_shows_publicly(self):
         post_id = self.create().json()["id"]
