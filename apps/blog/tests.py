@@ -1,15 +1,20 @@
 import shutil
 import tempfile
 from io import BytesIO
+from unittest import mock
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from PIL import Image
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import Category, Post
 
 User = get_user_model()
+
+BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) Firefox/131.0"
 
 
 def doc(*nodes):
@@ -47,6 +52,67 @@ class PublicBlogApiTests(TestCase):
     def test_categories_only_with_published_posts(self):
         data = self.client.get("/api/blog/categories/").json()
         self.assertEqual([(c["slug"], c["post_count"]) for c in data], [("django", 1)])
+
+
+class PostViewCountTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.live = Post.objects.create(title="Live", slug="live", is_published=True)
+        self.draft = Post.objects.create(title="Draft", slug="draft")
+
+    def view(self, slug="live", **headers):
+        return self.client.post(f"/api/blog/posts/{slug}/view/", **headers)
+
+    def test_view_increments_published_post(self):
+        self.assertEqual(self.view(HTTP_USER_AGENT=BROWSER_UA).json(), {"view_count": 1})
+        self.assertEqual(self.view(HTTP_USER_AGENT=BROWSER_UA).json(), {"view_count": 2})
+        self.live.refresh_from_db()
+        self.assertEqual(self.live.view_count, 2)
+
+    def test_view_404_for_draft_and_missing(self):
+        self.assertEqual(self.view("draft", HTTP_USER_AGENT=BROWSER_UA).status_code, 404)
+        self.assertEqual(self.view("nope", HTTP_USER_AGENT=BROWSER_UA).status_code, 404)
+        self.draft.refresh_from_db()
+        self.assertEqual(self.draft.view_count, 0)
+
+    def test_bot_and_empty_user_agent_do_not_count(self):
+        for ua in ("Googlebot/2.1", "HeadlessChrome/120", "Chrome-Lighthouse"):
+            response = self.view(HTTP_USER_AGENT=ua)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), {"view_count": 0})
+        response = self.view()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"view_count": 0})
+        self.live.refresh_from_db()
+        self.assertEqual(self.live.view_count, 0)
+
+    def test_detail_get_does_not_count(self):
+        self.client.get("/api/blog/posts/live/", HTTP_USER_AGENT=BROWSER_UA)
+        data = self.client.get("/api/blog/posts/live/", HTTP_USER_AGENT=BROWSER_UA).json()
+        self.assertNotIn("view_count", data)
+        self.assertNotIn("view_count", self.client.get("/api/blog/posts/").json()[0])
+        self.live.refresh_from_db()
+        self.assertEqual(self.live.view_count, 0)
+
+    def test_get_is_not_allowed(self):
+        response = self.client.get("/api/blog/posts/live/view/", HTTP_USER_AGENT=BROWSER_UA)
+        self.assertEqual(response.status_code, 405)
+
+    def test_view_keeps_updated_at(self):
+        updated_at = self.live.updated_at
+        self.view(HTTP_USER_AGENT=BROWSER_UA)
+        self.live.refresh_from_db()
+        self.assertEqual(self.live.updated_at, updated_at)
+        self.assertEqual(self.live.view_count, 1)
+
+    def test_view_is_throttled(self):
+        # DRF caches rates on the class, so override_settings does not reach them.
+        with mock.patch.object(ScopedRateThrottle, "THROTTLE_RATES", {"blog_view": "2/hour"}):
+            self.assertEqual(self.view(HTTP_USER_AGENT=BROWSER_UA).status_code, 200)
+            self.assertEqual(self.view(HTTP_USER_AGENT=BROWSER_UA).status_code, 200)
+            self.assertEqual(self.view(HTTP_USER_AGENT=BROWSER_UA).status_code, 429)
+        self.live.refresh_from_db()
+        self.assertEqual(self.live.view_count, 2)
 
 
 class DashboardAuthTests(TestCase):
@@ -166,6 +232,16 @@ class DashboardPostTests(TestCase):
             f"/api/dashboard/posts/{post_id}/", {"is_published": True}, content_type="application/json"
         )
         self.assertEqual(Client().get("/api/blog/posts/hello-django/").status_code, 200)
+
+    def test_list_has_read_only_view_count(self):
+        post_id = self.create().json()["id"]
+        self.assertEqual(self.client.get("/api/dashboard/posts/").json()[0]["view_count"], 0)
+        response = self.client.patch(
+            f"/api/dashboard/posts/{post_id}/", {"view_count": 99}, content_type="application/json"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("view_count", response.json())
+        self.assertEqual(Post.objects.get(pk=post_id).view_count, 0)
 
     def test_image_upload_and_cover(self):
         buffer = BytesIO()
