@@ -1,12 +1,14 @@
 import shutil
 import tempfile
+import threading
 from io import BytesIO
 from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import Client, TestCase, override_settings
+from django.db import connection
+from django.test import Client, TestCase, TransactionTestCase, override_settings
 from PIL import Image
 from rest_framework.throttling import ScopedRateThrottle
 
@@ -113,6 +115,57 @@ class PostViewCountTests(TestCase):
             self.assertEqual(self.view(HTTP_USER_AGENT=BROWSER_UA).status_code, 429)
         self.live.refresh_from_db()
         self.assertEqual(self.live.view_count, 2)
+
+
+class PostViewCountConcurrencyTests(TransactionTestCase):
+    """Real threads and real connections, so lost updates would show up (acceptance 3)."""
+
+    def test_parallel_views_are_not_lost(self):
+        cache.clear()
+        post = Post.objects.create(title="Live", slug="live", is_published=True)
+        threads, per_thread = 8, 5
+        barrier = threading.Barrier(threads)
+        statuses = []
+
+        def worker():
+            client = Client()
+            try:
+                barrier.wait()
+                for _ in range(per_thread):
+                    statuses.append(
+                        client.post("/api/blog/posts/live/view/", HTTP_USER_AGENT=BROWSER_UA).status_code
+                    )
+            finally:
+                connection.close()
+
+        pool = [threading.Thread(target=worker) for _ in range(threads)]
+        for thread in pool:
+            thread.start()
+        for thread in pool:
+            thread.join()
+
+        self.assertEqual(statuses, [200] * threads * per_thread)
+        post.refresh_from_db()
+        self.assertEqual(post.view_count, threads * per_thread)
+
+
+class PostAdminViewCountTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_superuser(email="admin@example.com", password="pass-12345")
+        self.client.force_login(self.admin)
+        self.post = Post.objects.create(title="Live", slug="live", is_published=True, view_count=7)
+
+    def test_admin_list_shows_view_count(self):
+        response = self.client.get("/admin/blog/post/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "column-view_count")
+        self.assertContains(response, '<td class="field-view_count">7</td>', html=True)
+
+    def test_admin_change_page_view_count_is_read_only(self):
+        response = self.client.get(f"/admin/blog/post/{self.post.pk}/change/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "field-view_count")
+        self.assertNotContains(response, 'name="view_count"')
 
 
 class DashboardAuthTests(TestCase):
