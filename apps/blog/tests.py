@@ -4,20 +4,25 @@ import threading
 from io import BytesIO
 from unittest import mock
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
 from django.test import (
     Client,
+    RequestFactory,
+    SimpleTestCase,
     TestCase,
     TransactionTestCase,
     override_settings,
 )
 from PIL import Image
+from rest_framework.settings import api_settings
 from rest_framework.throttling import ScopedRateThrottle
 
 from .models import Category, Post
+from .views import BOT_UA_MARKERS, is_bot
 
 User = get_user_model()
 
@@ -160,9 +165,50 @@ class PostViewCountOriginTests(TestCase):
         self.assertEqual(self.view().json(), {"view_count": 4})
 
 
+class BotUserAgentTests(SimpleTestCase):
+    def test_every_marker_matches_in_any_case(self):
+        for marker in BOT_UA_MARKERS:
+            embedded = f"Mozilla/5.0 (compatible; X{marker.title()}/1.0)"
+            for ua in (marker, marker.upper(), marker.capitalize(), embedded):
+                with self.subTest(ua=ua):
+                    self.assertTrue(is_bot(ua))
+
+    def test_empty_user_agent_is_a_bot(self):
+        self.assertTrue(is_bot(""))
+
+    def test_real_browser_is_not_a_bot(self):
+        chrome = (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+        )
+        for ua in (chrome, BROWSER_UA):
+            with self.subTest(ua=ua):
+                self.assertFalse(is_bot(ua))
+
+
+class ThrottleClientIpTests(SimpleTestCase):
+    """Guards the proxy assumption: nginx then Caddy in front of Gunicorn (NUM_PROXIES=2)."""
+
+    def test_two_proxies_take_the_real_client_ip(self):
+        rest_framework = {**settings.REST_FRAMEWORK, "NUM_PROXIES": 2}
+        # get_ident() reads the module-level api_settings, which caches values. override_settings
+        # fires setting_changed and DRF calls api_settings.reload(), so the override reaches it
+        # (unlike THROTTLE_RATES, a class attribute frozen at import). The assert proves it.
+        with override_settings(REST_FRAMEWORK=rest_framework):
+            self.assertEqual(api_settings.NUM_PROXIES, 2)
+            request = RequestFactory().post(
+                "/api/blog/posts/live/view/",
+                HTTP_X_FORWARDED_FOR="6.6.6.6, 1.2.3.4, 172.18.0.5",
+                REMOTE_ADDR="172.18.0.9",
+            )
+            self.assertEqual(ScopedRateThrottle().get_ident(request), "1.2.3.4")
+
+
 class PostViewCountConcurrencyTests(TransactionTestCase):
     """Real threads and real connections, so lost updates would show up (acceptance 3)."""
 
+    # 40 requests from one IP: lift the rate so a future change to blog_view cannot fail this test.
+    @mock.patch.object(ScopedRateThrottle, "THROTTLE_RATES", {"blog_view": "10000/hour"})
     def test_parallel_views_are_not_lost(self):
         cache.clear()
         post = Post.objects.create(title="Live", slug="live", is_published=True)
