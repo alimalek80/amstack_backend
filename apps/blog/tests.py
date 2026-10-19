@@ -8,7 +8,12 @@ from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection
-from django.test import Client, TestCase, TransactionTestCase, override_settings
+from django.test import (
+    Client,
+    TestCase,
+    TransactionTestCase,
+    override_settings,
+)
 from PIL import Image
 from rest_framework.throttling import ScopedRateThrottle
 
@@ -115,6 +120,44 @@ class PostViewCountTests(TestCase):
             self.assertEqual(self.view(HTTP_USER_AGENT=BROWSER_UA).status_code, 429)
         self.live.refresh_from_db()
         self.assertEqual(self.live.view_count, 2)
+
+
+@override_settings(CSRF_TRUSTED_ORIGINS=["https://amstack.org"])
+class PostViewCountOriginTests(TestCase):
+    """Only same-origin browser requests count, so other sites cannot inflate views."""
+
+    def setUp(self):
+        cache.clear()
+        self.live = Post.objects.create(title="Live", slug="live", is_published=True)
+
+    def view(self, **headers):
+        return self.client.post("/api/blog/posts/live/view/", HTTP_USER_AGENT=BROWSER_UA, **headers)
+
+    def assert_not_counted(self, **headers):
+        response = self.view(**headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"view_count": 0})
+        self.live.refresh_from_db()
+        self.assertEqual(self.live.view_count, 0)
+
+    def test_cross_site_fetch_does_not_count(self):
+        for site in ("cross-site", "same-site", "none"):
+            self.assert_not_counted(HTTP_SEC_FETCH_SITE=site)
+
+    def test_foreign_origin_does_not_count(self):
+        self.assert_not_counted(HTTP_ORIGIN="https://evil.example")
+        self.assert_not_counted(HTTP_ORIGIN="null")
+        # A same-origin Sec-Fetch-Site does not excuse a foreign Origin.
+        self.assert_not_counted(HTTP_SEC_FETCH_SITE="same-origin", HTTP_ORIGIN="https://evil.example")
+
+    def test_same_origin_and_no_headers_count(self):
+        self.assertEqual(
+            self.view(HTTP_SEC_FETCH_SITE="same-origin", HTTP_ORIGIN="https://amstack.org").json(),
+            {"view_count": 1},
+        )
+        self.assertEqual(self.view(HTTP_SEC_FETCH_SITE="same-origin").json(), {"view_count": 2})
+        self.assertEqual(self.view(HTTP_ORIGIN="https://amstack.org").json(), {"view_count": 3})
+        self.assertEqual(self.view().json(), {"view_count": 4})
 
 
 class PostViewCountConcurrencyTests(TransactionTestCase):

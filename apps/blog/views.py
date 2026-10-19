@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.db.models import Count, F
 from django.http import Http404
@@ -58,6 +59,21 @@ def is_bot(user_agent: str) -> bool:
     return not ua or any(marker in ua for marker in BOT_UA_MARKERS)
 
 
+def is_cross_site(request) -> bool:
+    """True when the browser says the POST came from another site.
+
+    The endpoint has no CSRF check and a bodiless POST needs no CORS preflight, so any
+    third-party page could otherwise add a view for each of its visitors. Requests that
+    send neither header (old browsers, curl) are not cross-site by this test; the per-IP
+    throttle covers them.
+    """
+    fetch_site = request.headers.get("Sec-Fetch-Site")
+    if fetch_site is not None and fetch_site != "same-origin":
+        return True
+    origin = request.headers.get("Origin")
+    return origin is not None and origin not in settings.CSRF_TRUSTED_ORIGINS
+
+
 class PostViewCountView(APIView):
     """Records one view of a published post and returns the new total."""
 
@@ -69,7 +85,7 @@ class PostViewCountView(APIView):
 
     def post(self, request, slug):
         posts = Post.objects.filter(slug=slug, is_published=True)
-        if not is_bot(request.META.get("HTTP_USER_AGENT", "")):
+        if not is_bot(request.META.get("HTTP_USER_AGENT", "")) and not is_cross_site(request):
             # One atomic UPDATE ... SET view_count = view_count + 1. QuerySet.update()
             # skips save(), so auto_now on updated_at is not triggered.
             posts.update(view_count=F("view_count") + 1)
