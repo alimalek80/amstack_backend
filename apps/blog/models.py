@@ -44,6 +44,7 @@ class Post(models.Model):
     repo_url = models.URLField(blank=True, help_text="GitHub repository link (optional).")
     is_published = models.BooleanField(default=False)
     published_at = models.DateTimeField(null=True, blank=True)
+    view_count = models.PositiveIntegerField(default=0, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
