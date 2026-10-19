@@ -11,6 +11,7 @@ urlpatterns = [
     path("blog/categories/", views.CategoryListView.as_view(), name="blog-category-list"),
     path("blog/posts/", views.PostListView.as_view(), name="blog-post-list"),
     path("blog/posts/<slug:slug>/", views.PostDetailView.as_view(), name="blog-post-detail"),
+    path("blog/posts/<slug:slug>/view/", views.PostViewCountView.as_view(), name="blog-post-view"),
     path("dashboard/auth/me/", views.MeView.as_view(), name="dashboard-me"),
     path("dashboard/auth/login/", views.LoginView.as_view(), name="dashboard-login"),
     path("dashboard/auth/logout/", views.LogoutView.as_view(), name="dashboard-logout"),

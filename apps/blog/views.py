@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate, login, logout
-from django.db.models import Count
+from django.db.models import Count, F
+from django.http import Http404
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_protect, ensure_csrf_cookie
 from rest_framework import generics, status, viewsets
@@ -46,6 +47,36 @@ class PostDetailView(generics.RetrieveAPIView):
     serializer_class = PostDetailSerializer
     queryset = Post.objects.filter(is_published=True).select_related("category", "cover")
     lookup_field = "slug"
+
+
+# Lower-cased substrings that mark crawlers, previews and audit tools. An empty UA counts as a bot.
+BOT_UA_MARKERS = ("bot", "crawler", "spider", "slurp", "headless", "lighthouse")
+
+
+def is_bot(user_agent: str) -> bool:
+    ua = user_agent.lower()
+    return not ua or any(marker in ua for marker in BOT_UA_MARKERS)
+
+
+class PostViewCountView(APIView):
+    """Records one view of a published post and returns the new total."""
+
+    permission_classes = [AllowAny]
+    # No authentication: no CSRF check, and a logged-in admin counts like anyone else.
+    authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "blog_view"
+
+    def post(self, request, slug):
+        posts = Post.objects.filter(slug=slug, is_published=True)
+        if not is_bot(request.META.get("HTTP_USER_AGENT", "")):
+            # One atomic UPDATE ... SET view_count = view_count + 1. QuerySet.update()
+            # skips save(), so auto_now on updated_at is not triggered.
+            posts.update(view_count=F("view_count") + 1)
+        view_count = posts.values_list("view_count", flat=True).first()
+        if view_count is None:
+            raise Http404
+        return Response({"view_count": view_count})
 
 
 # ----- Dashboard API (superusers only, session login from the Next.js dashboard) -----

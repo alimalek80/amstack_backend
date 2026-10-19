@@ -99,6 +99,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "contact": "5/hour",
         "dashboard_login": "20/hour",
+        "blog_view": "60/hour",
     },
 }
 
