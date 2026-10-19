@@ -14,10 +14,11 @@ class CategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Post)
 class PostAdmin(admin.ModelAdmin):
-    list_display = ("title", "category", "is_published", "published_at", "updated_at")
+    list_display = ("title", "category", "is_published", "published_at", "updated_at", "view_count")
     list_filter = ("is_published", "category")
     search_fields = ("title", "excerpt")
     prepopulated_fields = {"slug": ("title",)}
+    readonly_fields = ("view_count",)
 
 
 admin.site.register(BlogImage)

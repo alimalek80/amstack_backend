@@ -98,7 +98,7 @@ class DashboardPostListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = ["id", "title", "slug", "category", "is_published", "published_at", "updated_at"]
+        fields = ["id", "title", "slug", "category", "is_published", "published_at", "updated_at", "view_count"]
 
 
 class DashboardPostSerializer(serializers.ModelSerializer):
