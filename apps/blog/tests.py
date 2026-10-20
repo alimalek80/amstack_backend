@@ -102,9 +102,24 @@ class PostViewCountTests(TestCase):
         self.client.get("/api/blog/posts/live/", HTTP_USER_AGENT=BROWSER_UA)
         data = self.client.get("/api/blog/posts/live/", HTTP_USER_AGENT=BROWSER_UA).json()
         self.assertNotIn("view_count", data)
-        self.assertNotIn("view_count", self.client.get("/api/blog/posts/").json()[0])
         self.live.refresh_from_db()
         self.assertEqual(self.live.view_count, 0)
+
+    def test_list_returns_stored_count_and_never_counts(self):
+        category = Category.objects.create(name="Django", slug="django")
+        Post.objects.filter(pk=self.live.pk).update(category=category, view_count=7)
+        Post.objects.filter(pk=self.draft.pk).update(category=category)
+        for url in ("/api/blog/posts/", "/api/blog/posts/?category=django"):
+            for _ in range(2):
+                response = self.client.get(url, HTTP_USER_AGENT=BROWSER_UA)
+                self.assertEqual(response.status_code, 200)
+                items = response.json()
+                self.assertEqual([item["slug"] for item in items], ["live"])
+                self.assertEqual(items[0]["view_count"], 7)
+        self.live.refresh_from_db()
+        self.draft.refresh_from_db()
+        self.assertEqual(self.live.view_count, 7)
+        self.assertEqual(self.draft.view_count, 0)
 
     def test_get_is_not_allowed(self):
         response = self.client.get("/api/blog/posts/live/view/", HTTP_USER_AGENT=BROWSER_UA)
