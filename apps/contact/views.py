@@ -1,11 +1,15 @@
 from django.db import transaction
-from rest_framework import generics, status
+from django.db.models import F
+from rest_framework import generics, mixins, status, viewsets
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 
+from apps.blog.views import DashboardMixin
+
+from .models import ContactMessage
 from .notifications import notify_new_message
-from .serializers import ContactMessageSerializer
+from .serializers import ContactMessageSerializer, DashboardContactMessageSerializer
 
 
 class ContactCreateView(generics.CreateAPIView):
@@ -27,4 +31,29 @@ class ContactCreateView(generics.CreateAPIView):
         return Response(
             {"detail": "Thanks! Your message has been sent."},
             status=status.HTTP_201_CREATED,
+        )
+
+
+# ----- Dashboard API (superusers only) -----
+
+
+class DashboardContactMessageViewSet(
+    DashboardMixin, mixins.ListModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet
+):
+    """Contact requests for the dashboard: list all, and toggle is_read. No create or delete."""
+
+    serializer_class = DashboardContactMessageSerializer
+    http_method_names = ["get", "patch", "head", "options"]
+
+    def get_queryset(self):
+        # Group order: services (site order), then projects (site order), then no topic;
+        # newest first inside each group. The frontend groups by first appearance.
+        return ContactMessage.objects.select_related("service", "project").order_by(
+            F("service__order").asc(nulls_last=True),
+            F("service__title").asc(nulls_last=True),
+            F("service__id").asc(nulls_last=True),
+            F("project__order").asc(nulls_last=True),
+            F("project__id").desc(nulls_last=True),
+            "-created_at",
+            "-id",
         )
