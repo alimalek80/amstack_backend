@@ -1,17 +1,20 @@
+import json
 from datetime import timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
-from django.test import Client, TestCase, override_settings
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import Client, TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.portfolio.models import Project, Service
 
 from .models import ContactMessage
-from .notifications import _send_email, _summary
+from .notifications import _send_email, _send_telegram, _summary
 
 User = get_user_model()
 
@@ -338,3 +341,90 @@ class ContactAdminTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, 'name="service"')
         self.assertNotContains(response, 'name="project"')
+
+
+class ContactTopicQaTests(TestCase):
+    """Extra QA coverage: topic line in both channels and the admin topic filter."""
+
+    def setUp(self):
+        create_topics(self)
+
+    @override_settings(CONTACT_NOTIFY_EMAIL="me@example.com")
+    def test_email_body_has_topic_line(self):
+        message = ContactMessage(
+            name="Test Person", email="test@example.com", message="Hi", project=self.shop
+        )
+        _send_email(message)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("Topic: Project: Shop\n", mail.outbox[0].body)
+        self.assertEqual(mail.outbox[0].subject, "New contact message from Test Person")
+
+    @override_settings(TELEGRAM_BOT_TOKEN="test-token", TELEGRAM_CHAT_ID="123")
+    def test_telegram_text_has_topic_line(self):
+        message = ContactMessage(
+            name="Test Person", email="test@example.com", message="Hi", service=self.web_apps
+        )
+        with mock.patch("apps.contact.notifications.urlrequest.urlopen") as urlopen:
+            _send_telegram(message)
+        sent = json.loads(urlopen.call_args.args[0].data)
+        self.assertIn("Topic: Service: Web apps\n", sent["text"])
+        self.assertEqual(sent["chat_id"], "123")
+
+    def test_admin_can_filter_by_topic(self):
+        admin_user = User.objects.create_superuser(email="admin@example.com", password="pass-12345")
+        ContactMessage.objects.create(
+            name="Test Service", email="test@example.com", message="Hi", service=self.web_apps
+        )
+        ContactMessage.objects.create(
+            name="Test Project", email="test@example.com", message="Hi", project=self.shop
+        )
+        ContactMessage.objects.create(name="Test None", email="test@example.com", message="Hi")
+        self.client.force_login(admin_user)
+        response = self.client.get(
+            f"/admin/contact/contactmessage/?service__id__exact={self.web_apps.pk}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Test Service")
+        self.assertNotContains(response, "Test Project")
+        self.assertNotContains(response, "Test None")
+        response = self.client.get(f"/admin/contact/contactmessage/?project__id__exact={self.shop.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Test Project")
+        self.assertNotContains(response, "Test Service")
+        # The related-only filter offers the topic titles that have messages.
+        response = self.client.get("/admin/contact/contactmessage/")
+        self.assertContains(response, "By service")
+        self.assertContains(response, "By project")
+
+
+class ContactTopicMigrationTests(TransactionTestCase):
+    """Existing rows keep their data and get no topic after 0002."""
+
+    before = [("contact", "0001_initial")]
+    after = [("contact", "0002_contactmessage_topic")]
+
+    def tearDown(self):
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+    def test_existing_rows_get_empty_topic(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.before)
+        old_apps = executor.loader.project_state(self.before).apps
+        OldMessage = old_apps.get_model("contact", "ContactMessage")
+        old = OldMessage.objects.create(
+            name="Test Person", email="test@example.com", message="Hi", budget="2k_5k", is_read=True
+        )
+
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(self.after)
+        new_apps = executor.loader.project_state(self.after).apps
+        row = new_apps.get_model("contact", "ContactMessage").objects.get(pk=old.pk)
+        self.assertIsNone(row.service_id)
+        self.assertIsNone(row.project_id)
+        self.assertEqual(
+            (row.name, row.email, row.message, row.budget, row.is_read),
+            ("Test Person", "test@example.com", "Hi", "2k_5k", True),
+        )
