@@ -26,6 +26,19 @@ class CategoryRefSerializer(serializers.ModelSerializer):
         fields = ["name", "slug"]
 
 
+# Shared public fields. The list adds view_count; the detail does not (the post page
+# gets its live number from the record-view POST, never from the cached payload).
+PUBLIC_POST_FIELDS = [
+    "title",
+    "slug",
+    "excerpt",
+    "category",
+    "cover_image",
+    "published_at",
+    "reading_minutes",
+]
+
+
 class PostListSerializer(serializers.ModelSerializer):
     category = CategoryRefSerializer(read_only=True)
     cover_image = serializers.SerializerMethodField()
@@ -33,15 +46,8 @@ class PostListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Post
-        fields = [
-            "title",
-            "slug",
-            "excerpt",
-            "category",
-            "cover_image",
-            "published_at",
-            "reading_minutes",
-        ]
+        # view_count is read only (editable=False on the model).
+        fields = PUBLIC_POST_FIELDS + ["view_count"]
 
     def get_cover_image(self, obj):
         return obj.cover.image.url if obj.cover else None
@@ -49,7 +55,7 @@ class PostListSerializer(serializers.ModelSerializer):
 
 class PostDetailSerializer(PostListSerializer):
     class Meta(PostListSerializer.Meta):
-        fields = PostListSerializer.Meta.fields + ["body", "repo_url", "updated_at"]
+        fields = PUBLIC_POST_FIELDS + ["body", "repo_url", "updated_at"]
 
 
 # ----- Dashboard API (superusers only) -----
