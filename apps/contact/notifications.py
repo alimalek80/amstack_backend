@@ -20,9 +20,21 @@ def _clean_name(message):
     return " ".join(message.name.split())[:80]
 
 
+def _topic(message):
+    topic = message.topic
+    if topic is None:
+        return "-"
+    kind, item = topic
+    return f"{'Service' if kind == 'service' else 'Project'}: {item.title}"
+
+
 def _summary(message):
     budget = message.get_budget_display() or "-"
-    return f"From: {_clean_name(message)} <{message.email}>\nBudget: {budget}\n\n{message.message}"
+    return (
+        f"From: {_clean_name(message)} <{message.email}>\n"
+        f"Topic: {_topic(message)}\n"
+        f"Budget: {budget}\n\n{message.message}"
+    )
 
 
 def _send_email(message):
